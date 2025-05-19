@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/context/AuthContext";
+import { User } from "lucide-react";
 import Image from "next/image";
 import MusicPlayer from "@/components/MusicPlayer";
 
@@ -14,66 +15,67 @@ export default function HomePage() {
 
   return (
     <div
-      className="relative min-h-screen bg-cover bg-center text-white font-sans"
+      className="relative min-h-screen flex flex-col items-center justify-center font-sans text-white overflow-hidden"
       style={{
-        backgroundImage: "url('/assets/images/game-home-bg.jpg')", // Custom game-style background
+        backgroundImage: "url('/assets/images/game-home-bg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
+      {/* 🎵 Music */}
       <MusicPlayer />
 
-      {/* 👤 Clickable User Icon – Top Right */}
+      {/* 👤 Profile Icon */}
       <div
-        className="absolute top-4 right-4 z-10 flex items-center gap-2 cursor-pointer"
+        className="absolute top-5 right-6 z-10 p-2 bg-black/40 hover:bg-indigo-600 transition rounded-full border border-indigo-400/30 cursor-pointer"
         onClick={() => router.push("/profile")}
         title="View Profile"
       >
-        <Image
-          src="/assets/user-icon.png"
-          alt="User Icon"
-          width={45}
-          height={45}
-          className="rounded-full border-2 border-yellow-500 hover:scale-105 transition"
-        />
+        <User className="h-6 w-6 text-white" />
       </div>
 
-      {/* 🏯 Left-Aligned Welcome & Story */}
-      <div className="absolute top-1/2 left-10 transform -translate-y-1/2 max-w-xl">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-yellow-400 drop-shadow-lg">
-          Welcome, {user?.username}!
-        </h1>
-        <p className="text-lg md:text-xl text-gray-200 bg-black bg-opacity-50 px-5 py-4 rounded-xl leading-relaxed">
-          The Shaolin Temple of Code lies in ruins. The Complexity Dragon must be stopped.
-          <br />Your quest begins now. Will you become the Legendary Hero of Code?
-        </p>
+      {/* 🧭 Main Layout */}
+      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between w-full max-w-7xl px-8 py-12 gap-12">
 
-        {/* Shane Image */}
-        <div className="mt-6">
+        {/* 📖 Left - Hero Story Section */}
+        <div className="max-w-xl text-left space-y-6 p-6 rounded-2xl shadow-lg animate-fade-in">
+          <h1 className="text-5xl font-extrabold text-yellow-400 drop-shadow-[0_2px_8px_rgba(234,179,8,0.8)] animate-slide-down">
+            Welcome, {user?.username}!
+          </h1>
+          <p className="text-lg leading-relaxed text-gray-200 animate-fade-in-delay">
+            <span className="block">The Shaolin Temple of Code lies in ruins...</span>
+            <span className="block mt-2">The Complexity Dragon has awakened.</span>
+            <span className="block mt-2">Your quest begins now. Will you become the Legendary Hero of Code?</span>
+          </p>
           <Image
             src="/assets/shane-standing.png"
             alt="Shane the Coder"
-            width={200}
-            height={200}
-            className="drop-shadow-lg"
+            width={220}
+            height={220}
+            className="drop-shadow-[0_5px_15px_rgba(255,255,255,0.4)] mx-auto md:mx-0 animate-bounce-slow"
           />
+        </div>
+
+        {/* 🎮 Right - Game Actions */}
+        <div className="flex flex-col items-center gap-6 p-8 rounded-2xl shadow-2xl animate-fade-in">
+          <button
+            onClick={() => router.push("/game/level1")}
+            className="w-[220px] text-lg py-3 px-6 rounded-xl font-bold bg-gradient-to-tr from-[#0f0c29] via-[#302b63] to-[#24243e] hover:from-[#1f1c49] hover:to-[#343460] text-white shadow-[0_0_10px_rgba(100,100,255,0.6)] hover:shadow-[0_0_20px_rgba(150,150,255,0.8)] transition transform hover:scale-110 tracking-widest border border-blue-300"
+          >
+            ▶️ Start Game
+          </button>
+
+          <button
+            onClick={() => router.push("/codex")}
+            className="w-[220px] text-lg py-3 px-6 rounded-xl font-bold bg-gradient-to-tr from-[#1c1c1c] via-[#444] to-[#222] hover:from-[#333] hover:to-[#555] text-white shadow-[0_0_10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_20px_rgba(255,255,255,0.5)] transition transform hover:scale-110 tracking-widest border border-gray-400"
+          >
+            📜 Codex
+          </button>
         </div>
       </div>
 
-      {/* Game Options */}
-      <div className="absolute top-1/2 right-10 transform -translate-y-1/2 flex flex-col items-center gap-6">
-        <button
-          onClick={() => router.push("/game/level1")}
-          className="bg-green-500 hover:bg-green-600 transition px-8 py-3 text-xl rounded-xl shadow-lg font-bold transform hover:scale-105 min-w-[200px] text-center"
-        >
-          ▶️ Start Game
-        </button>
-
-        <button
-          onClick={() => router.push("/codex")}
-          className="bg-blue-500 hover:bg-blue-600 transition px-8 py-3 text-xl rounded-xl shadow-lg font-bold transform hover:scale-105 min-w-[200px] text-center"
-        >
-          📜 Codex
-        </button>
-      </div>
+      {/* ✨ Particle Overlay or FX */}
+      <div className="pointer-events-none fixed top-0 left-0 w-full h-full z-0 bg-[url('/assets/effects/stars-overlay.png')] opacity-10 animate-fade-in" />
     </div>
   );
 }

@@ -1,60 +1,293 @@
 import React, { useEffect, useRef } from "react";
 import Phaser from "phaser";
+import DialogueManager from './DialogueManager';
 
 const PhaserGame = () => {
   const gameRef = useRef(null);
+  const phaserContainerRef = useRef(null);
 
   useEffect(() => {
-    if (gameRef.current) return; // Prevent double init on Fast Refresh
+    if (gameRef.current) return;
 
     class MainScene extends Phaser.Scene {
       constructor() {
         super("MainScene");
+        this.player = null;
+        this.cursors = null;
+        this.wasd = null;
+        this.groundLayer = null;
+        this.objectLayer = null;
+        this.npcs = [];
       }
 
       preload() {
-        this.load.image("tiles", "/assets/tilesets/tiles.png");
-        this.load.tilemapTiledJSON("map", "/assets/tilemaps/test-map.json");
-        this.load.spritesheet("shane", "/assets/sprites/shane.png", {
+        console.log("[Phaser] 🚀 Preload started");
+        this.load.on("loaderror", (file) => {
+          console.error("❌ Load failed for:", file.key, file.src);
+        });
+        // Tileset and tilemap
+        this.load.image("tileset1", "/assets/level1/tilesets/tileset1.png");
+        this.load.image("tileset2", "/assets/level1/tilesets/tileset2.png");
+        this.load.tilemapTiledJSON("map", "/assets/level1/tilemaps/map1.json");
+        // Player
+        this.load.spritesheet("player", "/assets/level1/sprites/shane.png", {
           frameWidth: 32,
           frameHeight: 48,
         });
+        this.load.spritesheet("monk1", "/assets/level1/sprites/monk.png", {
+          frameWidth: 32,
+          frameHeight: 48
+        });
+        
+        console.log("[Phaser] ✅ All load calls registered");
       }
 
       create() {
+        console.log("[Phaser] 🌱 Create running");
+        // Tilemap setup
         const map = this.make.tilemap({ key: "map" });
-        const tileset = map.addTilesetImage("tileset-name-in-tiled", "tiles");
-        const ground = map.createLayer("Ground", tileset);
+        const tileset1 = map.addTilesetImage("tileset1", "tileset1");
+        const tileset2 = map.addTilesetImage("tileset2", "tileset2");
+        this.groundLayer = map.createLayer("Ground", [tileset1, tileset2], 0, 0);
+        this.objectLayer = map.createLayer("Objects", [tileset1, tileset2], 0, 0);
+        this.groundLayer.setScale(0.5);
+        this.objectLayer.setScale(0.5);
+        if (this.objectLayer) {
+          this.objectLayer.setCollisionByProperty({ collides: true });
+          console.log(this.objectLayer.getTilesWithin().filter(tile => tile.collides));
+        }
+        // --- NPCs Setup ---
+        this.npcs = [];
+        const npcObjects = (map.getObjectLayer('NPCs')?.objects || []).filter(obj => {
+          if (!obj.properties) return false;
+          return obj.properties.some(p => p.name === 'type' && p.value === 'NPC');
+        });
+        npcObjects.forEach(npcData => {
+          // Defensive: check required properties
+          if (typeof npcData.x !== 'number' || typeof npcData.y !== 'number' || !npcData.name) return;
+          const x = npcData.x * 0.5;
+          const y = (npcData.y * 0.5) - (npcData.height || 0);
+          let spriteKey = npcData.properties?.find(p => p.name === 'spriteKey')?.value || npcData.name || 'monk1';
+          if (!this.textures.exists(spriteKey)) spriteKey = 'monk1';
+          const npc = this.physics.add.sprite(x, y, spriteKey).setOrigin(0, 0);
+          npc.setScale(1.5);
+          npc.setDepth(10);
+          npc.setImmovable(true);
+          npc.body.setSize(npc.width, npc.height, true);
+          npc.npcName = npcData.name;
+          npc.facing = 'down';
+          if (Array.isArray(npcData.properties)) {
+            npcData.properties.forEach(prop => {
+              npc[prop.name] = prop.value;
+            });
+          }
+          this.physics.add.collider(npc, this.objectLayer);
+          this.npcs.push(npc);
+        });
+        // --- End NPCs Setup ---
 
-        this.player = this.physics.add.sprite(100, 100, "shane");
-        this.cursors = this.input.keyboard.createCursorKeys();
+        // Player setup
+        this.player = this.physics.add.sprite(600, 200, "player", 0);
+        this.player.setCollideWorldBounds(true);
+        this.player.setScale(1.5);
+        this.player.body.setSize(this.player.width, this.player.height, true);
+        this.physics.add.collider(this.player, this.objectLayer);
+        // Collide player with all NPCs
+        this.npcs.forEach(npc => this.physics.add.collider(this.player, npc));
 
+        // Dialogue Manager
+        this.dialogueManager = new DialogueManager(this, map.widthInPixels);
+
+        // Camera setup
+        this.cameras.main.startFollow(this.player);
+        this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+        this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+
+        // Animations
         this.anims.create({
           key: "walk-down",
-          frames: this.anims.generateFrameNumbers("shane", { start: 0, end: 3 }),
-          frameRate: 10,
+          frames: this.anims.generateFrameNumbers("player", { start: 0, end: 3 }),
+          frameRate: 8,
           repeat: -1,
         });
+        this.anims.create({
+          key: "walk-left",
+          frames: this.anims.generateFrameNumbers("player", { start: 4, end: 7 }),
+          frameRate: 8,
+          repeat: -1,
+        });
+        this.anims.create({
+          key: "walk-right",
+          frames: this.anims.generateFrameNumbers("player", { start: 8, end: 11 }),
+          frameRate: 8,
+          repeat: -1,
+        });
+        this.anims.create({
+          key: "walk-up",
+          frames: this.anims.generateFrameNumbers("player", { start: 12, end: 15 }),
+          frameRate: 8,
+          repeat: -1,
+        });
+        this.anims.create({
+          key: "idle-down",
+          frames: [{ key: "player", frame: 0 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: "idle-left",
+          frames: [{ key: "player", frame: 4 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: "idle-right",
+          frames: [{ key: "player", frame: 8 }],
+          frameRate: 1,
+        });
+        this.anims.create({
+          key: "idle-up",
+          frames: [{ key: "player", frame: 12 }],
+          frameRate: 1,
+        });
+        /*this.anims.create({
+          key: 'npc_idle',
+          frames: this.anims.generateFrameNumbers('monk1', { start: 0, end: 3 }),
+          frameRate: 6,
+          repeat: -1
+        });
+        this.monk1.anims.play('npc_idle');*/
 
-        // Add other directions similarly
+        // Controls
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.wasd = this.input.keyboard.addKeys({
+          up: Phaser.Input.Keyboard.KeyCodes.W,
+          down: Phaser.Input.Keyboard.KeyCodes.S,
+          left: Phaser.Input.Keyboard.KeyCodes.A,
+          right: Phaser.Input.Keyboard.KeyCodes.D,
+        });
+        this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
+        /*//Collision Debug
+        const debugGraphics = this.add.graphics().setAlpha(0.75);
+        this.objectLayer.renderDebug(debugGraphics, {
+            tileColor: null, // Non-colliding tiles are not colored
+            collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Orange-ish color
+            faceColor: new Phaser.Display.Color(40, 39, 37, 255) // Face edges of colliding tiles
+        });*/
       }
 
       update() {
-        const speed = 100;
-        const { left, right, up, down } = this.cursors;
+        const speed = 150;
+        let moving = false;
+        let lastDirection = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : "idle-down";
+        let direction = null;
+        const cursors = this.cursors;
+        const wasd = this.wasd;
+        this.player.setVelocity(0);
 
-        if (left.isDown) {
-          this.player.setVelocity(-speed, 0);
-        } else if (right.isDown) {
-          this.player.setVelocity(speed, 0);
-        } else if (up.isDown) {
-          this.player.setVelocity(0, -speed);
-        } else if (down.isDown) {
-          this.player.setVelocity(0, speed);
-          this.player.anims.play("walk-down", true);
+        // Movement logic (arrow keys or WASD)
+        if (cursors.left.isDown || wasd.left.isDown) {
+          this.player.setVelocityX(-speed);
+          direction = "left";
+          moving = true;
+        } else if (cursors.right.isDown || wasd.right.isDown) {
+          this.player.setVelocityX(speed);
+          direction = "right";
+          moving = true;
+        }
+        if (cursors.up.isDown || wasd.up.isDown) {
+          this.player.setVelocityY(-speed);
+          direction = "up";
+          moving = true;
+        } else if (cursors.down.isDown || wasd.down.isDown) {
+          this.player.setVelocityY(speed);
+          direction = "down";
+          moving = true;
+        }
+
+        // Animation logic
+        if (moving) {
+          if (direction === "left") {
+            this.player.anims.play("walk-left", true);
+          } else if (direction === "right") {
+            this.player.anims.play("walk-right", true);
+          } else if (direction === "up") {
+            this.player.anims.play("walk-up", true);
+          } else if (direction === "down") {
+            this.player.anims.play("walk-down", true);
+          }
         } else {
-          this.player.setVelocity(0, 0);
-          this.player.anims.stop();
+          // Idle animation based on last direction
+          if (lastDirection.includes("left")) {
+            this.player.anims.play("idle-left", true);
+          } else if (lastDirection.includes("right")) {
+            this.player.anims.play("idle-right", true);
+          } else if (lastDirection.includes("up")) {
+            this.player.anims.play("idle-up", true);
+          } else {
+            this.player.anims.play("idle-down", true);
+          }
+        }
+        if (this.player.body.velocity.length() > 0) {
+          this.player.body.velocity.normalize().scale(speed);
+        }
+
+        // NPC Distance Check & Interaction
+        let closestNPC = null;
+        let minDist = Infinity;
+        if (Array.isArray(this.npcs)) {
+          this.npcs.forEach(npc => {
+            if (!npc || !npc.body) return;
+            // Use direct distance in world coordinates (no scaling)
+            const dist = Phaser.Math.Distance.Between(
+              this.player.x, this.player.y,
+              npc.x, npc.y
+            );
+            if (dist < minDist) {
+              minDist = dist;
+              closestNPC = npc;
+            }
+          });
+        }
+        // Use a tight threshold for interaction (e.g., 30px)
+        if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+          if (closestNPC && minDist < 70) {
+            // Face NPC toward player and set correct frame
+            const dx = this.player.x - closestNPC.x;
+            const dy = this.player.y - closestNPC.y;
+            let npcFace = 'down';
+            let frame = 0;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              if (dx < 0) {
+                npcFace = 'left';
+                frame = 4;
+                closestNPC.setFlipX(false); // No flip for left, use frame
+              } else {
+                npcFace = 'right';
+                frame = 8;
+                closestNPC.setFlipX(false); // No flip for right, use frame
+              }
+            } else {
+              if (dy < 0) {
+                npcFace = 'up';
+                frame = 12;
+              } else {
+                npcFace = 'down';
+                frame = 0;
+              }
+            }
+            closestNPC.facing = npcFace;
+            closestNPC.anims.stop(); // Stop any running animation
+            closestNPC.setFrame(frame); // Set correct facing frame
+
+            if (closestNPC.interactionType === "talk") {
+              const dialogue = closestNPC.dialogue || "This NPC has nothing to say.";
+              this.dialogueManager.showDialogue(dialogue);
+            }            
+            // Log interaction
+            console.log(`Interacting with ${closestNPC.npcName}`);
+          } else {
+            console.log('No NPC nearby to interact with');
+          }
         }
       }
     }
@@ -63,24 +296,40 @@ const PhaserGame = () => {
       type: Phaser.AUTO,
       width: window.innerWidth,
       height: window.innerHeight,
-      parent: "phaser-container",
+      parent: phaserContainerRef.current,
       physics: {
         default: "arcade",
         arcade: {
-          debug: false,
+          debug: true,
         },
       },
       scene: MainScene,
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
     };
 
     gameRef.current = new Phaser.Game(config);
 
+    // Handle window resize
+    const handleResize = () => {
+      if (gameRef.current && gameRef.current.scale) {
+        gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
     return () => {
-      gameRef.current.destroy(true);
+      window.removeEventListener("resize", handleResize);
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
     };
   }, []);
 
-  return <div id="phaser-container" className="w-full h-screen" />;
+  return <div ref={phaserContainerRef} id="phaser-container" className="w-screen h-screen" />;
 };
 
 export default PhaserGame;
