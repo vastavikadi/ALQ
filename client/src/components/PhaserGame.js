@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import DialogueManager from './DialogueManager';
+import Quest from './Quest.js';
 
 const PhaserGame = () => {
   const gameRef = useRef(null);
@@ -35,6 +36,10 @@ const PhaserGame = () => {
           frameHeight: 48,
         });
         this.load.spritesheet("monk1", "/assets/level1/sprites/monk.png", {
+          frameWidth: 32,
+          frameHeight: 48
+        });
+        this.load.spritesheet("student", "/assets/level1/sprites/student.png", {
           frameWidth: 32,
           frameHeight: 48
         });
@@ -91,12 +96,16 @@ const PhaserGame = () => {
         this.player.setCollideWorldBounds(true);
         this.player.setScale(1.5);
         this.player.body.setSize(this.player.width, this.player.height, true);
+        this.playerMovementEnabled = true;
         this.physics.add.collider(this.player, this.objectLayer);
-        // Collide player with all NPCs
         this.npcs.forEach(npc => this.physics.add.collider(this.player, npc));
 
         // Dialogue Manager
-        this.dialogueManager = new DialogueManager(this, map.widthInPixels);
+        this.dialogueManager = new DialogueManager(this, map.widthInPixels , () => {
+          this.playerMovementEnabled = false; // disable on dialogue open
+        }, () => {
+          this.playerMovementEnabled = true; // re-enable on dialogue close
+        });
 
         // Camera setup
         this.cameras.main.startFollow(this.player);
@@ -182,26 +191,29 @@ const PhaserGame = () => {
         let direction = null;
         const cursors = this.cursors;
         const wasd = this.wasd;
-        this.player.setVelocity(0);
-
-        // Movement logic (arrow keys or WASD)
-        if (cursors.left.isDown || wasd.left.isDown) {
-          this.player.setVelocityX(-speed);
-          direction = "left";
-          moving = true;
-        } else if (cursors.right.isDown || wasd.right.isDown) {
-          this.player.setVelocityX(speed);
-          direction = "right";
-          moving = true;
-        }
-        if (cursors.up.isDown || wasd.up.isDown) {
-          this.player.setVelocityY(-speed);
-          direction = "up";
-          moving = true;
-        } else if (cursors.down.isDown || wasd.down.isDown) {
-          this.player.setVelocityY(speed);
-          direction = "down";
-          moving = true;
+        if(this.playerMovementEnabled) {
+          this.player.setVelocity(0);
+          // Movement logic (arrow keys or WASD)
+          if (cursors.left.isDown || wasd.left.isDown) {
+            this.player.setVelocityX(-speed);
+            direction = "left";
+            moving = true;
+          } else if (cursors.right.isDown || wasd.right.isDown) {
+            this.player.setVelocityX(speed);
+            direction = "right";
+            moving = true;
+          }
+          if (cursors.up.isDown || wasd.up.isDown) {
+            this.player.setVelocityY(-speed);
+            direction = "up";
+            moving = true;
+          } else if (cursors.down.isDown || wasd.down.isDown) {
+            this.player.setVelocityY(speed);
+            direction = "down";
+            moving = true;
+          }
+        }else {
+          this.player.setVelocity(0);
         }
 
         // Animation logic
@@ -279,10 +291,25 @@ const PhaserGame = () => {
             closestNPC.anims.stop(); // Stop any running animation
             closestNPC.setFrame(frame); // Set correct facing frame
 
-            if (closestNPC.interactionType === "talk") {
-              const dialogue = closestNPC.dialogue || "This NPC has nothing to say.";
-              this.dialogueManager.showDialogue(dialogue);
-            }            
+            if (closestNPC) {
+              const type = closestNPC.interactionType || 'talk'; // default fallback
+            
+              switch (type) {
+                case 'talk':
+                  const dialogue = closestNPC.dialogue || "This NPC has nothing to say.";
+                  this.dialogueManager.showDialogue(dialogue);
+                  break;
+            
+                case 'quest':
+                  console.log(`QUEST 1 is called (NPC: ${closestNPC.npcName})`);
+                  this.scene.pause(); // Pause main game
+                  this.scene.launch('QuestScene', { playerName: this.playerName });
+                  break;
+            
+                default:
+                  console.warn(`Unknown interaction type: ${type}`);
+              }
+            }         
             // Log interaction
             console.log(`Interacting with ${closestNPC.npcName}`);
           } else {
@@ -303,7 +330,10 @@ const PhaserGame = () => {
           debug: true,
         },
       },
-      scene: MainScene,
+      dom: {
+        createContainer: true
+      },
+      scene: [MainScene, Quest],
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,

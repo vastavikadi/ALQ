@@ -1,11 +1,13 @@
 export default class DialogueManager {
-    constructor(scene, mapWidth) {
+    constructor(scene, mapWidth, onShow = () => {}, onHide = () => {}) {
       this.scene = scene;
       this.dialogueBox = null;
       this.dialogueText = null;
       this.isVisible = false;
       this.enterKey = null;
-      this.mapWidth = mapWidth * 0.5; // Scale map width to match your 0.5 scale
+      this.mapWidth = mapWidth * 0.5;
+      this.onShow = onShow; 
+      this.onHide = onHide; 
     }
   
     showDialogue(text) {
@@ -41,6 +43,7 @@ export default class DialogueManager {
       this.enterKey.once('down', () => this.hideDialogue());
   
       this.isVisible = true;
+      this.onShow();
     }
   
     hideDialogue() {
@@ -50,6 +53,7 @@ export default class DialogueManager {
       this.dialogueText.destroy();
   
       this.isVisible = false;
+      this.onHide();
     }
   
     isDialogueOpen() {
