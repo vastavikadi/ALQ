@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 
-const PhaserGame = dynamic(() => import("../../components/PhaserGame"), {
+const PhaserGame = dynamic(() => import("../../components/PhaserGameSecond"), {
   ssr: false,
 });
 
